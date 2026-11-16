@@ -1,5 +1,28 @@
 
 import './App.css'
+const foods = [
+  {
+    id: 1,
+    name: "Fresh Veg Meals",
+    description: "Healthy and freshly prepared meals",
+    price: 50,
+    image: "https://images.unsplash.com/photo-1547592180-85f173990554?w=600"
+  },
+  {
+    id: 2,
+    name: "Fresh Bakery Items",
+    description: "Fresh bread and bakery products",
+    price: 30,
+    image: "https://images.unsplash.com/photo-1509440159596-0249088772ff?w=600"
+  },
+  {
+    id: 3,
+    name: "Healthy Food Bowls",
+    description: "Nutritious and delicious food bowls",
+    price: 40,
+    image: "https://images.unsplash.com/photo-1490645935967-10de6ba17061?w=600"
+  }
+];
 
 function App() {
   return (
@@ -61,50 +84,25 @@ function App() {
           Instead of wasting good food, let's give it a second chance.
         </p>
       </section>
+{/* Food Section */}
+<section className="food-section" id="food">
+  <p className="section-tag">DISCOVER FOOD</p>
+  <h2>Food That Needs a New Home</h2>
 
-      {/* Food Section */}
-      <section className="food-section" id="food">
-        <p className="section-tag">DISCOVER FOOD</p>
-        <h2>Food That Needs a New Home</h2>
-
-        <div className="food-cards">
-          <div className="food-card">
-            <img
-              src="https://images.unsplash.com/photo-1547592180-85f173990554?w=600"
-              alt="Fresh vegetable meal"
-            />
-            <div className="food-info">
-              <h3>Fresh Veg Meals</h3>
-              <p>Healthy meals available for collection.</p>
-              <button>View Details</button>
-            </div>
-          </div>
-
-          <div className="food-card">
-            <img
-              src="https://images.unsplash.com/photo-1509440159596-0249088772ff?w=600"
-              alt="Fresh bread"
-            />
-            <div className="food-info">
-              <h3>Fresh Bakery Items</h3>
-              <p>Delicious bakery items ready to be shared.</p>
-              <button>View Details</button>
-            </div>
-          </div>
-
-          <div className="food-card">
-            <img
-              src="https://images.unsplash.com/photo-1490645935967-10de6ba17061?w=600"
-              alt="Fresh food bowl"
-            />
-            <div className="food-info">
-              <h3>Healthy Food Bowls</h3>
-              <p>Nutritious food looking for a new home.</p>
-              <button>View Details</button>
-            </div>
-          </div>
+  <div className="food-cards">
+    {foods.map((food) => (
+      <div className="food-card" key={food.id}>
+        <img src={food.image} alt={food.name} />
+        <div className="food-info">
+          <h3>{food.name}</h3>
+          <p>{food.description}</p>
+          <p>Price: ₹{food.price}</p>
+          <button>View Details</button>
         </div>
-      </section>
+      </div>
+    ))}
+  </div>
+</section>
 
       {/* Impact Section */}
       <section className="impact" id="impact">
