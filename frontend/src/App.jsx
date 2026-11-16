@@ -1,11 +1,15 @@
 
-import './App.css'
+import './App.css';
+import "./index.css";
 const foods = [
   {
     id: 1,
     name: "Fresh Veg Meals",
     description: "Healthy and freshly prepared meals",
     price: 50,
+    quantity: "10 meal boxes",
+    location: "Uttarahalli, Bengaluru",
+    status: "Available",
     image: "https://images.unsplash.com/photo-1547592180-85f173990554?w=600"
   },
   {
@@ -13,6 +17,9 @@ const foods = [
     name: "Fresh Bakery Items",
     description: "Fresh bread and bakery products",
     price: 30,
+    quantity: "15 bread packets",
+    location: "Kengeri, Bengaluru",
+    status: "Available",
     image: "https://images.unsplash.com/photo-1509440159596-0249088772ff?w=600"
   },
   {
@@ -20,6 +27,9 @@ const foods = [
     name: "Healthy Food Bowls",
     description: "Nutritious and delicious food bowls",
     price: 40,
+    quantity: "8 food bowls",
+    location: "Yediyur, Bengaluru",
+    status: "Available",
     image: "https://images.unsplash.com/photo-1490645935967-10de6ba17061?w=600"
   }
 ];
@@ -93,11 +103,19 @@ function App() {
     {foods.map((food) => (
       <div className="food-card" key={food.id}>
         <img src={food.image} alt={food.name} />
+        <span className="food-status">{food.status}</span>
         <div className="food-info">
           <h3>{food.name}</h3>
-          <p>{food.description}</p>
-          <p>Price: ₹{food.price}</p>
-          <button>View Details</button>
+
+<p>{food.description}</p>
+
+<p>Price: ₹{food.price}</p>
+
+<p>Quantity: {food.quantity}</p>
+
+<p>Location: {food.location}</p>
+
+<button>View Details</button>
         </div>
       </div>
     ))}
