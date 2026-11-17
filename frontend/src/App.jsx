@@ -1,4 +1,4 @@
-
+import AdminDashboard from "./admin/AdminDashboard";
 import './App.css';
 import "./index.css";
 const foods = [
@@ -35,6 +35,9 @@ const foods = [
 ];
 
 function App() {
+  if (window.location.pathname === "/admin") {
+  return <AdminDashboard />;
+}
   return (
     <div className="app">
 
@@ -49,6 +52,7 @@ function App() {
           <a href="#about">About</a>
           <a href="#food">Available Food</a>
           <a href="#impact">Our Impact</a>
+          <a href="/admin">Admin</a>
         </div>
 
         <button className="login-btn">Login / Sign Up</button>
