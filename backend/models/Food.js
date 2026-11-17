@@ -44,6 +44,11 @@ const foodSchema = new mongoose.Schema(
             required: true
         },
 
+        image: {
+            type: String,
+            default: ""
+        },
+
         donor: {
             type: mongoose.Schema.Types.ObjectId,
             ref: "User",

@@ -3,14 +3,30 @@ const express = require("express");
 const Food = require("../models/Food");
 const authMiddleware = require("../middleware/authMiddleware");
 const roleMiddleware = require("../middleware/roleMiddleware");
+const upload = require("../middleware/uploadMiddleware");
 
 const router = express.Router();
+
+// Handle image upload errors
+const handleImageUpload = (req, res, next) => {
+    upload.single("image")(req, res, (error) => {
+        if (error) {
+            return res.status(400).json({
+                success: false,
+                message: error.message
+            });
+        }
+
+        next();
+    });
+};
 
 // ADD FOOD API - Donors only
 router.post(
     "/",
     authMiddleware,
     roleMiddleware("Donor"),
+    handleImageUpload,
     async (req, res) => {
         try {
             const {
@@ -48,8 +64,10 @@ router.post(
             }
 
             // Validate expiry time
-            if (Number.isNaN(Date.parse(expiryTime)) ||
-                new Date(expiryTime) <= new Date()) {
+            if (
+                Number.isNaN(Date.parse(expiryTime)) ||
+                new Date(expiryTime) <= new Date()
+            ) {
                 return res.status(400).json({
                     success: false,
                     message: "Expiry time must be a valid future date."
@@ -65,6 +83,7 @@ router.post(
                 unit,
                 pickupAddress,
                 expiryTime,
+                image: req.file ? `/uploads/${req.file.filename}` : "",
                 donor: req.user.id
             });
 
@@ -91,6 +110,7 @@ router.post(
         }
     }
 );
+
 // GET ALL AVAILABLE FOOD
 router.get("/", async (req, res) => {
     try {
@@ -114,4 +134,5 @@ router.get("/", async (req, res) => {
         });
     }
 });
+
 module.exports = router;

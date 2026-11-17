@@ -1,6 +1,7 @@
 
 const express = require("express");
 const cors = require("cors");
+const path = require("path");
 require("dotenv").config();
 
 const connectDB = require("./config/db");
@@ -17,6 +18,11 @@ const app = express();
 // Middleware
 app.use(cors());
 app.use(express.json());
+
+// Serve uploaded food images
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+
+// API Routes
 app.use("/api/auth", authRoutes);
 app.use("/api/foods", foodRoutes);
 app.use("/api/food-requests", foodRequestRoutes);
@@ -34,6 +40,7 @@ app.get("/api/test", (req, res) => {
         message: "SaveBite API is working!"
     });
 });
+
 // Protected test route
 app.get("/api/protected", authMiddleware, (req, res) => {
     res.json({
@@ -42,6 +49,7 @@ app.get("/api/protected", authMiddleware, (req, res) => {
         user: req.user
     });
 });
+
 // Donor-only test route
 app.get(
     "/api/donor-only",
@@ -54,6 +62,7 @@ app.get(
         });
     }
 );
+
 // Server port
 const PORT = process.env.PORT || 5000;
 
