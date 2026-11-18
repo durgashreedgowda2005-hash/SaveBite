@@ -1,3 +1,4 @@
+
 const mongoose = require("mongoose");
 
 const recipientVerificationSchema = new mongoose.Schema(
@@ -9,6 +10,36 @@ const recipientVerificationSchema = new mongoose.Schema(
             unique: true
         },
 
+        // Individual or Organization
+        recipientType: {
+            type: String,
+            enum: ["Individual", "Organization"],
+            default: "Individual",
+            required: true
+        },
+
+        // Organization details
+        organizationName: {
+            type: String,
+            trim: true,
+            maxlength: 150
+        },
+
+        organizationType: {
+            type: String,
+            enum: [
+                "Ashrama",
+                "Orphanage",
+                "Old Age Home",
+                "NGO",
+                "Community Kitchen",
+                "Other",
+                ""
+            ],
+            default: ""
+        },
+
+        // Applicant or organization's contact person
         fullName: {
             type: String,
             required: true,
@@ -27,6 +58,7 @@ const recipientVerificationSchema = new mongoose.Schema(
             trim: true
         },
 
+        // Number of people receiving food
         peopleCount: {
             type: Number,
             required: true,

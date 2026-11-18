@@ -1,9 +1,13 @@
+
 const express = require("express");
+const mongoose = require("mongoose");
+
 const Food = require("../models/Food");
 const FoodRequest = require("../models/FoodRequest");
 const authMiddleware = require("../middleware/authMiddleware");
 const roleMiddleware = require("../middleware/roleMiddleware");
 const User = require("../models/UserTemp");
+
 const router = express.Router();
 
 // RECIPIENT REQUESTS FOOD
@@ -15,12 +19,13 @@ router.post(
         try {
             const recipient = await User.findById(req.user.id);
 
-if (!recipient || recipient.verificationStatus !== "Approved") {
-    return res.status(403).json({
-        success: false,
-        message: "Your account must be verified before requesting food."
-    });
-}
+            if (!recipient || recipient.verificationStatus !== "Approved") {
+                return res.status(403).json({
+                    success: false,
+                    message: "Your account must be verified before requesting food."
+                });
+            }
+
             const { foodId, quantityRequested, message } = req.body;
 
             if (!foodId || !quantityRequested) {
@@ -30,8 +35,10 @@ if (!recipient || recipient.verificationStatus !== "Approved") {
                 });
             }
 
-            if (!Number.isInteger(Number(quantityRequested)) ||
-                Number(quantityRequested) < 1) {
+            if (
+                !Number.isInteger(Number(quantityRequested)) ||
+                Number(quantityRequested) < 1
+            ) {
                 return res.status(400).json({
                     success: false,
                     message: "Requested quantity must be a positive whole number."
@@ -89,6 +96,7 @@ if (!recipient || recipient.verificationStatus !== "Approved") {
         }
     }
 );
+
 // DONOR VIEWS FOOD REQUESTS
 router.get(
     "/donor",
@@ -106,7 +114,7 @@ router.get(
             res.status(200).json({
                 success: true,
                 count: requests.length,
-                requests: requests
+                requests
             });
 
         } catch (error) {
@@ -119,6 +127,7 @@ router.get(
         }
     }
 );
+
 // DONOR APPROVES FOOD REQUEST
 router.put(
     "/:requestId/approve",
@@ -128,13 +137,14 @@ router.put(
         try {
             const { requestId } = req.params;
 
-            if (!require("mongoose").isValidObjectId(requestId)) {
+            if (!mongoose.isValidObjectId(requestId)) {
                 return res.status(400).json({
                     success: false,
                     message: "Invalid request ID."
                 });
             }
 
+            // Find a pending request belonging to this donor
             const foodRequest = await FoodRequest.findOne({
                 _id: requestId,
                 donor: req.user.id,
@@ -148,9 +158,11 @@ router.put(
                 });
             }
 
+            // Reserve the requested quantity atomically
             const food = await Food.findOneAndUpdate(
                 {
                     _id: foodRequest.food,
+                    donor: req.user.id,
                     status: "Available",
                     expiryTime: { $gt: new Date() },
                     quantity: { $gte: foodRequest.quantityRequested }
@@ -160,7 +172,9 @@ router.put(
                         quantity: -foodRequest.quantityRequested
                     }
                 },
-                { new: true }
+                {
+                    new: true
+                }
             );
 
             if (!food) {
@@ -170,28 +184,26 @@ router.put(
                 });
             }
 
-            if (food.quantity === 0) {
-                food.status = "Reserved";
-                await food.save();
-            }
-
+            // Approve the request
             const updatedRequest = await FoodRequest.findOneAndUpdate(
                 {
                     _id: requestId,
                     donor: req.user.id,
                     status: "Pending"
                 },
-                { status: "Approved" },
-                { new: true }
+                {
+                    $set: { status: "Approved" }
+                },
+                {
+                    new: true
+                }
             );
 
+            // Restore quantity if the request could not be approved
             if (!updatedRequest) {
                 await Food.findByIdAndUpdate(food._id, {
                     $inc: {
                         quantity: foodRequest.quantityRequested
-                    },
-                    $set: {
-                        status: "Available"
                     }
                 });
 
@@ -201,9 +213,28 @@ router.put(
                 });
             }
 
+            // Automatically delete the listing when quantity reaches zero
+            if (food.quantity === 0) {
+                await Food.findByIdAndDelete(food._id);
+
+                // Reject any other outstanding requests for this listing
+                await FoodRequest.updateMany(
+                    {
+                        food: food._id,
+                        _id: { $ne: updatedRequest._id },
+                        status: "Pending"
+                    },
+                    {
+                        $set: { status: "Rejected" }
+                    }
+                );
+            }
+
             res.status(200).json({
                 success: true,
-                message: "Food request approved successfully!",
+                message: food.quantity === 0
+                    ? "Request approved! The food listing has been automatically deleted because its quantity reached zero."
+                    : "Food request approved successfully!",
                 request: updatedRequest,
                 remainingQuantity: food.quantity
             });
@@ -218,6 +249,7 @@ router.put(
         }
     }
 );
+
 // DONOR REJECTS FOOD REQUEST
 router.put(
     "/:requestId/reject",
@@ -227,7 +259,7 @@ router.put(
         try {
             const { requestId } = req.params;
 
-            if (!require("mongoose").isValidObjectId(requestId)) {
+            if (!mongoose.isValidObjectId(requestId)) {
                 return res.status(400).json({
                     success: false,
                     message: "Invalid request ID."
@@ -271,6 +303,7 @@ router.put(
         }
     }
 );
+
 // RECIPIENT VIEWS THEIR OWN REQUESTS
 router.get(
     "/my-requests",
@@ -288,7 +321,7 @@ router.get(
             res.status(200).json({
                 success: true,
                 count: requests.length,
-                requests: requests
+                requests
             });
 
         } catch (error) {
@@ -301,6 +334,7 @@ router.get(
         }
     }
 );
+
 // DONOR MARKS FOOD AS COLLECTED
 router.put(
     "/:requestId/collect",
@@ -310,7 +344,7 @@ router.put(
         try {
             const { requestId } = req.params;
 
-            if (!require("mongoose").isValidObjectId(requestId)) {
+            if (!mongoose.isValidObjectId(requestId)) {
                 return res.status(400).json({
                     success: false,
                     message: "Invalid request ID."
@@ -354,4 +388,5 @@ router.put(
         }
     }
 );
+
 module.exports = router;

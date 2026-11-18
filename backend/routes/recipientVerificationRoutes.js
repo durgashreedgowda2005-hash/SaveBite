@@ -1,3 +1,4 @@
+
 const express = require("express");
 const RecipientVerification = require("../models/RecipientVerification");
 const User = require("../models/UserTemp");
@@ -7,42 +8,128 @@ const adminMiddleware = require("../middleware/adminMiddleware");
 
 const router = express.Router();
 
-// RECIPIENT SUBMITS VERIFICATION APPLICATION
+const organizationTypes = [
+    "Ashrama",
+    "Orphanage",
+    "Old Age Home",
+    "NGO",
+    "Community Kitchen",
+    "Other"
+];
+
+// Validate recipient application details
+const validateApplication = (body) => {
+    const {
+        recipientType,
+        organizationName,
+        organizationType,
+        fullName,
+        phone,
+        area,
+        peopleCount,
+        reason,
+        referral
+    } = body;
+
+    if (!["Individual", "Organization"].includes(recipientType)) {
+        return "Please select Individual or Organization.";
+    }
+
+    if (
+        typeof fullName !== "string" ||
+        !fullName.trim() ||
+        typeof phone !== "string" ||
+        !phone.trim() ||
+        typeof area !== "string" ||
+        !area.trim() ||
+        typeof reason !== "string" ||
+        !reason.trim() ||
+        peopleCount === undefined ||
+        peopleCount === ""
+    ) {
+        return "Please provide all required details.";
+    }
+
+    if (!/^[0-9+\-\s]{7,15}$/.test(phone.trim())) {
+        return "Please enter a valid phone number.";
+    }
+
+    if (
+        !Number.isInteger(Number(peopleCount)) ||
+        Number(peopleCount) < 1
+    ) {
+        return "Number of people must be a positive whole number.";
+    }
+
+    if (reason.trim().length > 500) {
+        return "Reason cannot exceed 500 characters.";
+    }
+
+    if (
+        referral !== undefined &&
+        (typeof referral !== "string" || referral.length > 200)
+    ) {
+        return "Referral cannot exceed 200 characters.";
+    }
+
+    if (recipientType === "Organization") {
+        if (
+            typeof organizationName !== "string" ||
+            !organizationName.trim()
+        ) {
+            return "Please enter your organization name.";
+        }
+
+        if (organizationName.trim().length > 150) {
+            return "Organization name cannot exceed 150 characters.";
+        }
+
+        if (!organizationTypes.includes(organizationType)) {
+            return "Please select a valid organization type.";
+        }
+    }
+
+    return null;
+};
+
+// Prepare application data
+const getApplicationData = (body) => {
+    const isOrganization = body.recipientType === "Organization";
+
+    return {
+        recipientType: body.recipientType,
+        organizationName: isOrganization
+            ? body.organizationName.trim()
+            : "",
+        organizationType: isOrganization
+            ? body.organizationType
+            : "",
+        fullName: body.fullName.trim(),
+        phone: body.phone.trim(),
+        area: body.area.trim(),
+        peopleCount: Number(body.peopleCount),
+        reason: body.reason.trim(),
+        referral: body.referral?.trim() || ""
+    };
+};
+
+
+// ==========================================
+// RECIPIENT: SUBMIT VERIFICATION APPLICATION
+// ==========================================
+
 router.post(
     "/",
     authMiddleware,
     roleMiddleware("Recipient"),
     async (req, res) => {
         try {
-            const {
-                fullName,
-                phone,
-                area,
-                peopleCount,
-                reason,
-                referral
-            } = req.body;
+            const validationError = validateApplication(req.body);
 
-            if (
-                !fullName?.trim() ||
-                !phone?.trim() ||
-                !area?.trim() ||
-                peopleCount === undefined ||
-                !reason?.trim()
-            ) {
+            if (validationError) {
                 return res.status(400).json({
                     success: false,
-                    message: "Please provide all required details."
-                });
-            }
-
-            if (
-                !Number.isInteger(Number(peopleCount)) ||
-                Number(peopleCount) < 1
-            ) {
-                return res.status(400).json({
-                    success: false,
-                    message: "Number of people must be a positive whole number."
+                    message: validationError
                 });
             }
 
@@ -60,12 +147,7 @@ router.post(
 
             const application = await RecipientVerification.create({
                 recipient: req.user.id,
-                fullName,
-                phone,
-                area,
-                peopleCount,
-                reason,
-                referral
+                ...getApplicationData(req.body)
             });
 
             await User.findByIdAndUpdate(req.user.id, {
@@ -88,7 +170,12 @@ router.post(
         }
     }
 );
-// RECIPIENT CHECKS THEIR APPLICATION STATUS
+
+
+// ==========================================
+// RECIPIENT: CHECK APPLICATION STATUS
+// ==========================================
+
 router.get(
     "/my-status",
     authMiddleware,
@@ -121,7 +208,81 @@ router.get(
         }
     }
 );
-// Admin: View all recipient verification applications
+
+
+// ==========================================
+// RECIPIENT: UPDATE AND RESUBMIT APPLICATION
+// ==========================================
+
+router.put(
+    "/my-application",
+    authMiddleware,
+    roleMiddleware("Recipient"),
+    async (req, res) => {
+        try {
+            const validationError = validateApplication(req.body);
+
+            if (validationError) {
+                return res.status(400).json({
+                    success: false,
+                    message: validationError
+                });
+            }
+
+            const application = await RecipientVerification.findOne({
+                recipient: req.user.id
+            });
+
+            if (!application) {
+                return res.status(404).json({
+                    success: false,
+                    message: "Verification application not found."
+                });
+            }
+
+            if (application.status !== "Needs More Information") {
+                return res.status(400).json({
+                    success: false,
+                    message: "Your application cannot be edited at this stage."
+                });
+            }
+
+            Object.assign(
+                application,
+                getApplicationData(req.body)
+            );
+
+            application.status = "Pending";
+            application.adminNote = "";
+
+            await application.save();
+
+            await User.findByIdAndUpdate(req.user.id, {
+                verificationStatus: "Pending"
+            });
+
+            res.status(200).json({
+                success: true,
+                message: "Application updated and resubmitted successfully!",
+                application
+            });
+
+        } catch (error) {
+            console.error("Resubmission error:", error);
+
+            res.status(500).json({
+                success: false,
+                message: "Server error while resubmitting application."
+            });
+        }
+    }
+);
+
+
+// ==========================================
+// ADMIN: VIEW ALL APPLICATIONS
+// ==========================================
+
 router.get(
     "/admin/applications",
     authMiddleware,
@@ -147,7 +308,12 @@ router.get(
         }
     }
 );
-// Admin: Approve recipient verification application
+
+
+// ==========================================
+// ADMIN: APPROVE APPLICATION
+// ==========================================
+
 router.put(
     "/admin/:applicationId/approve",
     authMiddleware,
@@ -195,7 +361,12 @@ router.put(
         }
     }
 );
-// Admin: Reject recipient verification application
+
+
+// ==========================================
+// ADMIN: REJECT APPLICATION
+// ==========================================
+
 router.put(
     "/admin/:applicationId/reject",
     authMiddleware,
@@ -222,6 +393,7 @@ router.put(
 
             application.status = "Rejected";
             application.adminNote = req.body.adminNote || "";
+
             await application.save();
 
             await User.findByIdAndUpdate(
@@ -244,7 +416,12 @@ router.put(
         }
     }
 );
-// Admin: Request more information from recipient
+
+
+// ==========================================
+// ADMIN: REQUEST MORE INFORMATION
+// ==========================================
+
 router.put(
     "/admin/:applicationId/request-info",
     authMiddleware,
@@ -253,10 +430,14 @@ router.put(
         try {
             const { adminNote } = req.body;
 
-            if (!adminNote || !adminNote.trim()) {
+            if (
+                typeof adminNote !== "string" ||
+                !adminNote.trim() ||
+                adminNote.trim().length > 500
+            ) {
                 return res.status(400).json({
                     success: false,
-                    message: "Please provide the information required."
+                    message: "Please provide the required information (maximum 500 characters)."
                 });
             }
 
@@ -280,6 +461,7 @@ router.put(
 
             application.status = "Needs More Information";
             application.adminNote = adminNote.trim();
+
             await application.save();
 
             await User.findByIdAndUpdate(
@@ -302,4 +484,5 @@ router.put(
         }
     }
 );
+
 module.exports = router;

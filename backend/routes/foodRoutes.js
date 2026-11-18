@@ -1,6 +1,11 @@
 
 const express = require("express");
+const mongoose = require("mongoose");
+const fs = require("fs/promises");
+const path = require("path");
+
 const Food = require("../models/Food");
+const FoodRequest = require("../models/FoodRequest");
 const authMiddleware = require("../middleware/authMiddleware");
 const roleMiddleware = require("../middleware/roleMiddleware");
 const upload = require("../middleware/uploadMiddleware");
@@ -21,7 +26,7 @@ const handleImageUpload = (req, res, next) => {
     });
 };
 
-// ADD FOOD API - Donors only
+// ADD FOOD API - DONORS ONLY
 router.post(
     "/",
     authMiddleware,
@@ -39,7 +44,6 @@ router.post(
                 expiryTime
             } = req.body;
 
-            // Check required fields
             if (
                 !foodName ||
                 !description ||
@@ -55,7 +59,6 @@ router.post(
                 });
             }
 
-            // Validate quantity
             if (!Number.isFinite(Number(quantity)) || Number(quantity) < 1) {
                 return res.status(400).json({
                     success: false,
@@ -63,7 +66,6 @@ router.post(
                 });
             }
 
-            // Validate expiry time
             if (
                 Number.isNaN(Date.parse(expiryTime)) ||
                 new Date(expiryTime) <= new Date()
@@ -74,7 +76,6 @@ router.post(
                 });
             }
 
-            // Create food listing
             const newFood = await Food.create({
                 foodName,
                 description,
@@ -111,7 +112,112 @@ router.post(
     }
 );
 
-// GET ALL AVAILABLE FOOD
+// GET ALL FOOD LISTINGS OF LOGGED-IN DONOR
+router.get(
+    "/my-listings",
+    authMiddleware,
+    roleMiddleware("Donor"),
+    async (req, res) => {
+        try {
+            const foods = await Food.find({
+                donor: req.user.id
+            })
+                .populate("donor", "fullName email")
+                .sort({ createdAt: -1 });
+
+            res.status(200).json({
+                success: true,
+                count: foods.length,
+                foods
+            });
+
+        } catch (error) {
+            console.error("Get donor listings error:", error);
+
+            res.status(500).json({
+                success: false,
+                message: "Could not fetch your food listings."
+            });
+        }
+    }
+);
+
+// DELETE FOOD LISTING - DONOR OWNER ONLY
+router.delete(
+    "/:foodId",
+    authMiddleware,
+    roleMiddleware("Donor"),
+    async (req, res) => {
+        try {
+            const { foodId } = req.params;
+
+            if (!mongoose.isValidObjectId(foodId)) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Invalid food listing ID."
+                });
+            }
+
+            // Delete only a listing owned by the logged-in donor
+            const deletedFood = await Food.findOneAndDelete({
+                _id: foodId,
+                donor: req.user.id
+            });
+
+            if (!deletedFood) {
+                return res.status(404).json({
+                    success: false,
+                    message: "Food listing not found or you do not own it."
+                });
+            }
+
+            // Reject outstanding requests linked to this food
+            await FoodRequest.updateMany(
+                {
+                    food: foodId,
+                    status: { $in: ["Pending", "Approved"] }
+                },
+                {
+                    $set: { status: "Rejected" }
+                }
+            );
+
+            // Remove uploaded image if it exists
+            if (deletedFood.image) {
+                try {
+                    const imageName = path.basename(deletedFood.image);
+                    const imagePath = path.join(
+                        __dirname,
+                        "..",
+                        "uploads",
+                        imageName
+                    );
+
+                    await fs.unlink(imagePath);
+                } catch (imageError) {
+                    if (imageError.code !== "ENOENT") {
+                        console.error("Image deletion error:", imageError);
+                    }
+                }
+            }
+
+            res.status(200).json({
+                success: true,
+                message: "Food listing deleted successfully!"
+            });
+
+        } catch (error) {
+            console.error("Delete food error:", error);
+
+            res.status(500).json({
+                success: false,
+                message: "Something went wrong while deleting the food listing."
+            });
+        }
+    }
+);
+
+// GET ALL AVAILABLE FOOD - PUBLIC
 router.get("/", async (req, res) => {
     try {
         const foods = await Food.find({
@@ -122,7 +228,7 @@ router.get("/", async (req, res) => {
         res.status(200).json({
             success: true,
             count: foods.length,
-            foods: foods
+            foods
         });
 
     } catch (error) {
